@@ -58,6 +58,9 @@ var inputFile string
 var verboseFlag bool
 
 func main() {
+	var (
+		apiKey = flag.String("k", "", "provider API key")
+	)
 	flag.Parse()
 	stocks := []StockInfo{}
 	ch := make(chan StockInfo)
@@ -81,10 +84,7 @@ func main() {
 
 	for _, sym := range inputSymbols {
 		sym = strings.ToUpper(sym)
-		if sym == "BTC" {
-			sym = "BTCUSD=X"
-		}
-		go fetch(sym, ch)
+		go fetch(sym, ch, *apiKey)
 	}
 
 	for range inputSymbols {
@@ -114,16 +114,16 @@ func printStocks(stocks StockInfoSlice) {
 	tw.Flush()
 }
 
-func getURL(sym string) string {
-	const alphaVantage string = "https://www.alphavantage.co/query?function=globaL_quote&symbol=%s&apikey=****************"
-	return fmt.Sprintf(alphaVantage, sym)
+func getURL(sym string, apiKey string) string {
+	const alphaVantage string = "https://www.alphavantage.co/query?function=globaL_quote&symbol=%s&apikey=%s"
+	return fmt.Sprintf(alphaVantage, sym, apiKey)
 }
 
-func fetch(sym string, ch chan<- StockInfo) {
+func fetch(sym string, ch chan<- StockInfo, apiKey string) {
 
 	var errorResponse = StockInfo{price: 0.0, chgPercent: 0.0, symbol: sym}
 
-	url := getURL(sym)
+	url := getURL(sym, apiKey)
 	resp, err := http.Get(url)
 	if err != nil {
 		if verboseFlag {
