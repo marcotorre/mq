@@ -6,8 +6,10 @@
 
 mq is a command line tool for getting market quotes
 
+AlphaVantage is the quote provider, claim your free api key [here](https://www.alphavantage.co/support/#api-key)
+
 ```sh
-$ mq -s GOOG,TSLA,BTC,AAPL
+$ mq -s GOOG,TSLA,BTC,AAPL -k {YOUR ALPHAVANTAGE API KEY}
 
 Symbol    Price ($)  Change today (%)  
 ------    ---------  ----------------  
@@ -42,6 +44,5 @@ Contributions are welcome.
 
 Future plans for development:
 * Better error handling
-* AlphaVantage is the quote provider, claim your free api key [here](https://www.alphavantage.co/support/#api-key)
 * Add secrets management for API key through a .env file
 * Add unit tests
