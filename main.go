@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"sort"
@@ -17,6 +17,22 @@ import (
 )
 
 type symbols []string
+
+func (s *symbols) String() string {
+	log.Print("String()")
+	return fmt.Sprint(*s)
+}
+
+func (s *symbols) Set(value string) error {
+	log.Print("Set()")
+	if len(*s) > 0 {
+		return errors.New("symbols value already set")
+	}
+	for _, sym := range strings.Split(value, ",") {
+		*s = append(*s, sym)
+	}
+	return nil
+}
 
 type StockInfo struct {
 	price      float64
@@ -38,43 +54,18 @@ func (s StockInfoSlice) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-func (s *symbols) String() string {
-	return fmt.Sprint(*s)
-}
-
-// https://golang.org/src/flag/example_test.go
-func (s *symbols) Set(value string) error {
-	if len(*s) > 0 {
-		return errors.New("symbols value already set")
-	}
-	for _, sym := range strings.Split(value, ",") {
-		*s = append(*s, sym)
-	}
-	return nil
-}
-
-var inputSymbols symbols
-var inputFile string
-var verboseFlag bool
+var (
+	apiKey      = flag.String("k", "", "provider API key")
+	verboseFlag = flag.Bool("v", false, "verbose")
+)
 
 func main() {
-	var (
-		apiKey = flag.String("k", "", "provider API key")
-	)
+	var inputSymbols symbols
+	flag.Var(&inputSymbols, "s", "comma separated symbols")
 	flag.Parse()
+
 	stocks := []StockInfo{}
 	ch := make(chan StockInfo)
-
-	if len(inputFile) > 0 {
-		f, err := os.Open(inputFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "mq: Usage of %s:\n", os.Args[0])
-			flag.PrintDefaults()
-			return
-		}
-		appendSymbolsFromFile(f, &inputSymbols)
-		f.Close()
-	}
 
 	if len(inputSymbols) == 0 {
 		fmt.Fprintf(os.Stderr, "mq: Usage of %s:\n", os.Args[0])
@@ -83,8 +74,9 @@ func main() {
 	}
 
 	for _, sym := range inputSymbols {
+		log.Print(sym)
 		sym = strings.ToUpper(sym)
-		go fetch(sym, ch, *apiKey)
+		go fetch(sym, ch)
 	}
 
 	for range inputSymbols {
@@ -114,19 +106,20 @@ func printStocks(stocks StockInfoSlice) {
 	tw.Flush()
 }
 
-func getURL(sym string, apiKey string) string {
+func getURL(sym string) string {
 	const alphaVantage string = "https://www.alphavantage.co/query?function=globaL_quote&symbol=%s&apikey=%s"
-	return fmt.Sprintf(alphaVantage, sym, apiKey)
+	return fmt.Sprintf(alphaVantage, sym, *apiKey)
 }
 
-func fetch(sym string, ch chan<- StockInfo, apiKey string) {
+func fetch(sym string, ch chan<- StockInfo) {
 
 	var errorResponse = StockInfo{price: 0.0, chgPercent: 0.0, symbol: sym}
 
-	url := getURL(sym, apiKey)
+	url := getURL(sym)
+	log.Print(url)
 	resp, err := http.Get(url)
 	if err != nil {
-		if verboseFlag {
+		if *verboseFlag {
 			fmt.Println(err)
 		}
 		ch <- errorResponse
@@ -162,17 +155,4 @@ func fetch(sym string, ch chan<- StockInfo, apiKey string) {
 	ch <- StockInfo{price: price,
 		chgPercent: chgPercent,
 		symbol:     sym}
-}
-
-func appendSymbolsFromFile(f *os.File, syms *symbols) {
-	input := bufio.NewScanner(f)
-	for input.Scan() {
-		*syms = append(*syms, input.Text())
-	}
-}
-
-func init() {
-	flag.Var(&inputSymbols, "s", "space separated symbols")
-	flag.StringVar(&inputFile, "f", "", "newline separated file of symbols")
-	flag.BoolVar(&verboseFlag, "v", false, "verbose")
 }
